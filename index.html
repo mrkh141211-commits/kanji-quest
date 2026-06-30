@@ -279,12 +279,69 @@ function classOverallAvg(){const a=[];scores.forEach(r=>r.forEach(v=>{if(v!=='')
 function warnCount(){let n=0;scores.forEach(r=>r.forEach(v=>{if(v!==''&&Number(v)<=WARN)n++;}));return n;}
 function studentCount(){return scores.filter(r=>r.some(v=>v!=='')).length;}
 
-// autoAddColはscoreセル内でインライン処理に変更
+// 新しいテスト列をDOMに追加（renderScore全体を呼ばないのでフォーカスが消えない）
+function addNewCol(){
+  const newColIdx = cols.length;
+  const colName = 'テスト' + (newColIdx + 1);
+  cols.push(colName);
+  scores.forEach(r=>r.push(''));
+  save();
+
+  // ヘッダーに列を追加（合計列の前に挿入）
+  const hr = document.getElementById('headerRow');
+  const thAvg = hr.querySelector('.avg-th');
+  const th = document.createElement('th');
+  const dinp = document.createElement('input'); dinp.className='date-input'; dinp.value=colName;
+  dinp.addEventListener('change',()=>{ cols[newColIdx]=dinp.value||cols[newColIdx]; save(); });
+  th.appendChild(dinp); hr.insertBefore(th, thAvg);
+
+  // 各行に新しいスコアセルを追加
+  const tbody = document.getElementById('tbody');
+  const rows = tbody.querySelectorAll('tr:not(.avg-row)');
+  rows.forEach((tr, ri)=>{
+    const resultTd = tr.querySelector('.result-td');
+    const paTd = tr.querySelector(`#pa_${ri}`);
+    const td = document.createElement('td');
+    const inp = document.createElement('input');
+    inp.className='score-input'; inp.type='number'; inp.min=0; inp.max=MAX_SCORE;
+    inp.value=''; inp.id=`c_${ri}_${newColIdx+1}`;
+    inp.addEventListener('blur',()=>{
+      const raw=inp.value.trim();
+      scores[ri][newColIdx]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
+      if(scores[ri][newColIdx]!=='') inp.value=scores[ri][newColIdx];
+      inp.classList.toggle('warn',scores[ri][newColIdx]!==''&&Number(scores[ri][newColIdx])<=WARN);
+      save(); updateResultRow(ri); refreshAvgRow();
+      if(newColIdx===cols.length-1 && scores[ri][newColIdx]!=='') addNewCol();
+    });
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){
+        e.preventDefault();
+        inp.blur();
+        setTimeout(()=>focusCell(ri+1, newColIdx+1), 20);
+      }
+    });
+    td.appendChild(inp);
+    tr.insertBefore(td, paTd);
+  });
+
+  // 平均行にも列を追加
+  const avgRow = document.getElementById('tbody').querySelector('.avg-row');
+  if(avgRow){
+    const avgCells = avgRow.querySelectorAll('.avg-val');
+    const lastAvgCell = avgCells[avgCells.length-1]; // 合計セル
+    const td = document.createElement('td'); td.className='avg-val'; td.id=`ca_${newColIdx}`; td.textContent='—';
+    avgRow.insertBefore(td, lastAvgCell);
+  }
+}
 
 function focusCell(ri,ci){
   if(ri>=ROWS) return;
-  const el=document.getElementById(`c_${ri}_${ci}`);
-  if(el){el.focus();try{el.select();}catch(e){}}
+  const el=document.getElementById('c_'+ri+'_'+ci);
+  if(el){
+    el.focus();
+    el.select();
+    el.readOnly=false; // 念のためreadOnlyを外す
+  }
 }
 
 function renderScore(){
@@ -316,29 +373,32 @@ function renderScore(){
       const inp=document.createElement('input'); inp.className='score-input'; inp.type='number'; inp.min=0; inp.max=MAX_SCORE;
       inp.value=scores[ri][ci]; inp.id=`c_${ri}_${ci+1}`;
       if(scores[ri][ci]!==''&&Number(scores[ri][ci])<=WARN) inp.classList.add('warn');
-      // 値を確定して保存する共通処理
-      function commitScore(){
+      inp.addEventListener('keydown',e=>{
+        if(e.key==='Enter'){
+          e.preventDefault();
+          // 値を保存
+          const raw=inp.value.trim();
+          scores[ri][ci]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
+          if(scores[ri][ci]!=='') inp.value=scores[ri][ci];
+          inp.classList.toggle('warn',scores[ri][ci]!==''&&Number(scores[ri][ci])<=WARN);
+          save(); updateResultRow(ri); refreshAvgRow();
+          // 新列が必要なら追加してから次セルへ
+          if(ci===cols.length-1 && scores[ri][ci]!==''){
+            addNewCol();
+            // addNewColでDOMが追加されるので少し待つ
+            requestAnimationFrame(()=>requestAnimationFrame(()=>focusCell(ri+1,ci+1)));
+          } else {
+            focusCell(ri+1,ci+1);
+          }
+        }
+      });
+      inp.addEventListener('change',()=>{
         const raw=inp.value.trim();
         scores[ri][ci]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
         if(scores[ri][ci]!=='') inp.value=scores[ri][ci];
         inp.classList.toggle('warn',scores[ri][ci]!==''&&Number(scores[ri][ci])<=WARN);
         save(); updateResultRow(ri); refreshAvgRow();
-        // 最後の列に入力があれば新列追加（renderScoreを呼ぶのでここだけ）
-        const last=cols.length-1;
-        if(ci===last && scores[ri][ci]!==''){
-          cols.push('テスト'+(cols.length+1));
-          scores.forEach(r=>r.push(''));
-          save(); renderScore();
-        }
-      }
-      inp.addEventListener('change', commitScore);
-      inp.addEventListener('keydown',e=>{
-        if(e.key==='Enter'){
-          e.preventDefault();
-          commitScore();
-          // renderScoreが走った場合でも次セルにフォーカス
-          setTimeout(()=>focusCell(ri+1,ci+1), 30);
-        }
+        if(ci===cols.length-1 && scores[ri][ci]!=='') addNewCol();
       });
       td.appendChild(inp); tr.appendChild(td);
       const n=parseInt(scores[ri][ci]); if(!isNaN(n)) total+=n;
