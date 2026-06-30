@@ -308,25 +308,29 @@ function renderScore(){
         if(e.key==='Enter'){
           e.preventDefault();
           e.stopPropagation();
-          // 今の値を確定
+          // 値を確定
           const raw=this.value.trim();
           scores[ri][ci]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
           if(scores[ri][ci]!=='') this.value=scores[ri][ci];
           this.classList.toggle('warn', scores[ri][ci]!==''&&+scores[ri][ci]<=WARN);
           save(); updateRow(ri); refreshAvgRow();
-          // 新列が必要か
-          const needNewCol = ci===cols.length-1 && scores[ri][ci]!=='';
-          if(needNewCol){
-            cols.push('テスト'+(cols.length+1));
-            scores.forEach(r=>r.push(''));
-            save(); renderScore();
-            // renderScore後にフォーカス
-            document.getElementById('c_'+(ri+1)+'_'+(ci+1)) && document.getElementById('c_'+(ri+1)+'_'+(ci+1)).focus();
-          } else {
-            // 次の行の同じ列にフォーカス
-            const next=document.getElementById('c_'+(ri+1)+'_'+(ci+1));
-            if(next){ next.focus(); next.select(); }
-          }
+          // 次のセルへフォーカス（新列追加は行わない→フォーカスが消えるため）
+          const next=document.getElementById('c_'+(ri+1)+'_'+(ci+1));
+          if(next){ next.focus(); next.select(); }
+        }
+      });
+      inp.addEventListener('change', function(){
+        // フォーカス移動後に値が変わったとき（マウスクリックで離れたとき）の保存
+        const raw=this.value.trim();
+        scores[ri][ci]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
+        if(scores[ri][ci]!=='') this.value=scores[ri][ci];
+        this.classList.toggle('warn', scores[ri][ci]!==''&&+scores[ri][ci]<=WARN);
+        save(); updateRow(ri); refreshAvgRow();
+        // changeのときだけ新列追加（フォーカスはすでに別のセルにあるので安全）
+        if(ci===cols.length-1 && scores[ri][ci]!==''){
+          cols.push('テスト'+(cols.length+1));
+          scores.forEach(r=>r.push(''));
+          save(); renderScore();
         }
       });
 
