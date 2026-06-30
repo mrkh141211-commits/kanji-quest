@@ -68,9 +68,9 @@
 
   /* 集計タブ */
   .table-area { padding:14px; overflow-x:auto; }
-  table { border-collapse:collapse; font-size:13px; background:#fff; border:2px solid #4a78c8; border-radius:6px; overflow:hidden; box-shadow:0 4px 24px rgba(60,100,200,.18); }
+  table { border-collapse:collapse; font-size:13px; background:#fff; border:2px solid #4a78c8; border-radius:6px; overflow:hidden; box-shadow:0 4px 24px rgba(60,100,200,.18); table-layout:fixed; width:100%; }
   thead tr { background:linear-gradient(135deg,#1a3a8a,#2a5ac0); }
-  thead th { padding:9px 8px; color:#fff; font-weight:700; border:1px solid #1a3a8a; white-space:nowrap; text-align:center; font-family:'Noto Serif JP',serif; font-size:12px; }
+  thead th { padding:9px 8px; color:#fff; font-weight:700; border:1px solid #1a3a8a; white-space:nowrap; text-align:center; font-family:'Noto Serif JP',serif; font-size:12px; width:80px; }
   thead th.name-th { text-align:left; min-width:150px; width:155px; }
   thead th.total-th { min-width:170px; }
   thead th.avg-th { min-width:72px; }
@@ -86,7 +86,7 @@
   .row-num { font-size:11px; color:#5070b0; font-weight:700; min-width:22px; text-align:right; flex-shrink:0; }
   .name-label { font-size:14px; font-weight:700; color:#16284f; padding:7px 4px; }
   .name-label.empty { color:#b0c0d8; }
-  .score-input { border:none; background:transparent; width:100%; text-align:center; font-size:17px; color:#16284f; padding:7px 4px; display:block; font-weight:700; }
+  .score-input { border:none; background:transparent; width:100%; text-align:center; font-size:17px; color:#16284f; padding:7px 4px; display:block; font-weight:700; box-sizing:border-box; }
   .score-input:focus { outline:none; background:#eaf1ff; }
   .score-input.warn { color:#d4321f !important; font-weight:900; }
   td.result-td { padding:5px 10px; white-space:nowrap; min-width:170px; }
@@ -199,45 +199,18 @@ let names=Array(ROWS).fill(''), cols=['テスト1'], scores=Array(ROWS).fill(nul
 let isLoaded=false, saveTimer=null;
 
 function normalize(){
+  if(!cols||!cols.length) cols=['テスト1'];
   while(names.length<ROWS) names.push('');
   while(starsData.length<ROWS) starsData.push(0);
   while(scores.length<ROWS) scores.push(Array(cols.length).fill(''));
-  scores.forEach(row=>{while(row.length<cols.length)row.push('');});
+  scores.forEach(row=>{ while(row.length<cols.length) row.push(''); });
 }
 
 function setIndicator(state){
   const el=document.getElementById('saveIndicator');
   el.className='save-indicator'+(state==='saved'?' saved':state==='saving'?' saving':state==='error'?' error':'');
-  el.textContent={loading:'読み込み中…',saving:'保存中…',saved:'✔ クラウドに保存済み（全端末で共有）',error:'⚠ 保存に失敗しました'}[state]||'';
+  el.textContent={loading:'読み込み中…',saving:'保存中…',saved:'✔ クラウドに保存済み',error:'⚠ 保存失敗'}[state]||'';
 }
-
-// バナー画像の変更（localStorageに保存）
-const heroImg = document.getElementById('heroImg');
-const heroFileInput = document.getElementById('heroFileInput');
-const HERO_KEY = 'kq_hero_image';
-
-// 保存済みの画像があれば復元
-const savedHero = localStorage.getItem(HERO_KEY);
-if(savedHero) heroImg.src = savedHero;
-
-heroFileInput.addEventListener('change', e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev=>{
-    heroImg.src = ev.target.result;
-    try { localStorage.setItem(HERO_KEY, ev.target.result); } catch(err) { console.warn('画像の保存に失敗しました（ファイルサイズが大きい可能性があります）'); }
-  };
-  reader.readAsDataURL(file);
-});
-
-// Firebase リアルタイム同期
-onValue(dataRef, snap=>{
-  const d=snap.val();
-  if(d){ names=d.names||Array(ROWS).fill(''); cols=d.cols||['テスト1']; scores=d.scores||Array(ROWS).fill(null).map(()=>['']); starsData=d.stars||Array(ROWS).fill(0); }
-  normalize(); isLoaded=true; setIndicator('saved');
-  renderRoster(); renderScore();
-}, err=>{ console.error('Firebase読み込みエラー:',err); setIndicator('error'); });
 
 function save(){
   if(!isLoaded) return;
@@ -246,113 +219,66 @@ function save(){
   saveTimer=setTimeout(()=>{
     set(dataRef,{names,cols,scores,stars:starsData})
       .then(()=>setIndicator('saved'))
-      .catch(e=>{console.error('保存エラー:',e);setIndicator('error');});
-  },400);
+      .catch(()=>setIndicator('error'));
+  },600);
 }
 
-// タブ切り替え
+onValue(dataRef, snap=>{
+  const d=snap.val();
+  if(d){ names=d.names||Array(ROWS).fill(''); cols=d.cols||['テスト1']; scores=d.scores||Array(ROWS).fill(null).map(()=>['']); starsData=d.stars||Array(ROWS).fill(0); }
+  normalize(); isLoaded=true; setIndicator('saved');
+  renderRoster(); renderScore();
+}, ()=>setIndicator('error'));
+
+/* ===== バナー画像 ===== */
+const heroImg = document.getElementById('heroImg');
+const savedHero = localStorage.getItem('kq_hero');
+if(savedHero) heroImg.src=savedHero;
+document.getElementById('heroFileInput').addEventListener('change', e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{ heroImg.src=ev.target.result; try{localStorage.setItem('kq_hero',ev.target.result);}catch(e){} };
+  reader.readAsDataURL(file);
+});
+
+/* ===== タブ ===== */
 function switchTab(tab){
-  ['roster','score'].forEach(t=>{
-    document.getElementById('tabBtn'+t[0].toUpperCase()+t.slice(1)).classList.toggle('active',t===tab);
-    document.getElementById('tab'+t[0].toUpperCase()+t.slice(1)).classList.toggle('active',t===tab);
+  ['Roster','Score'].forEach(t=>{
+    document.getElementById('tabBtn'+t).classList.toggle('active', t.toLowerCase()===tab);
+    document.getElementById('tab'+t).classList.toggle('active', t.toLowerCase()===tab);
   });
 }
 
-// ===== 名簿タブ =====
+/* ===== 名簿タブ ===== */
 function renderRoster(){
-  const ta = document.getElementById('rosterTextarea');
-  if(ta) ta.value = names.filter((_,i)=>i<ROWS).join('\n').trimEnd();
+  const ta=document.getElementById('rosterTextarea');
+  if(ta) ta.value=names.slice(0,ROWS).join('\n').trimEnd();
 }
-
 function applyRoster(){
-  const ta = document.getElementById('rosterTextarea');
-  const lines = ta.value.split(/\r?\n/).map(line=>line.split('\t')[0].trim());
-  for(let i=0;i<ROWS;i++) names[i] = lines[i]||'';
+  const lines=document.getElementById('rosterTextarea').value.split(/\r?\n/).map(l=>l.split('\t')[0].trim());
+  for(let i=0;i<ROWS;i++) names[i]=lines[i]||'';
   save(); renderScore(); switchTab('score');
 }
 
-// ===== 集計タブ =====
+/* ===== 集計タブ ===== */
 function getLevel(t){return Math.floor(t/100)+1;}
-function colAvg(ci){const v=scores.map(r=>r[ci]).filter(x=>x!=='').map(Number);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;}
-function studentAvg(ri){const v=scores[ri].filter(x=>x!=='').map(Number);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;}
-function classOverallAvg(){const a=[];scores.forEach(r=>r.forEach(v=>{if(v!=='')a.push(Number(v));}));return a.length?a.reduce((x,y)=>x+y,0)/a.length:null;}
-function warnCount(){let n=0;scores.forEach(r=>r.forEach(v=>{if(v!==''&&Number(v)<=WARN)n++;}));return n;}
-function studentCount(){return scores.filter(r=>r.some(v=>v!=='')).length;}
-
-// 新しいテスト列をDOMに追加（renderScore全体を呼ばないのでフォーカスが消えない）
-function addNewCol(){
-  const newColIdx = cols.length;
-  const colName = 'テスト' + (newColIdx + 1);
-  cols.push(colName);
-  scores.forEach(r=>r.push(''));
-  save();
-
-  // ヘッダーに列を追加（合計列の前に挿入）
-  const hr = document.getElementById('headerRow');
-  const thAvg = hr.querySelector('.avg-th');
-  const th = document.createElement('th');
-  const dinp = document.createElement('input'); dinp.className='date-input'; dinp.value=colName;
-  dinp.addEventListener('change',()=>{ cols[newColIdx]=dinp.value||cols[newColIdx]; save(); });
-  th.appendChild(dinp); hr.insertBefore(th, thAvg);
-
-  // 各行に新しいスコアセルを追加
-  const tbody = document.getElementById('tbody');
-  const rows = tbody.querySelectorAll('tr:not(.avg-row)');
-  rows.forEach((tr, ri)=>{
-    const resultTd = tr.querySelector('.result-td');
-    const paTd = tr.querySelector(`#pa_${ri}`);
-    const td = document.createElement('td');
-    const inp = document.createElement('input');
-    inp.className='score-input'; inp.type='number'; inp.min=0; inp.max=MAX_SCORE;
-    inp.value=''; inp.id=`c_${ri}_${newColIdx+1}`;
-    inp.addEventListener('blur',()=>{
-      const raw=inp.value.trim();
-      scores[ri][newColIdx]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
-      if(scores[ri][newColIdx]!=='') inp.value=scores[ri][newColIdx];
-      inp.classList.toggle('warn',scores[ri][newColIdx]!==''&&Number(scores[ri][newColIdx])<=WARN);
-      save(); updateResultRow(ri); refreshAvgRow();
-      if(newColIdx===cols.length-1 && scores[ri][newColIdx]!=='') addNewCol();
-    });
-    inp.addEventListener('keydown',e=>{
-      if(e.key==='Enter'){
-        e.preventDefault();
-        inp.blur();
-        setTimeout(()=>focusCell(ri+1, newColIdx+1), 20);
-      }
-    });
-    td.appendChild(inp);
-    tr.insertBefore(td, paTd);
-  });
-
-  // 平均行にも列を追加
-  const avgRow = document.getElementById('tbody').querySelector('.avg-row');
-  if(avgRow){
-    const avgCells = avgRow.querySelectorAll('.avg-val');
-    const lastAvgCell = avgCells[avgCells.length-1]; // 合計セル
-    const td = document.createElement('td'); td.className='avg-val'; td.id=`ca_${newColIdx}`; td.textContent='—';
-    avgRow.insertBefore(td, lastAvgCell);
-  }
-}
-
-function focusCell(ri,ci){
-  if(ri>=ROWS) return;
-  const el=document.getElementById('c_'+ri+'_'+ci);
-  if(el){
-    el.focus();
-    el.select();
-    el.readOnly=false; // 念のためreadOnlyを外す
-  }
-}
+function colAvg(ci){const v=scores.map(r=>r[ci]).filter(x=>x!=='').map(Number);return v.length?v.reduce((a,b)=>a+b)/v.length:null;}
+function studentAvg(ri){const v=scores[ri].filter(x=>x!=='').map(Number);return v.length?v.reduce((a,b)=>a+b)/v.length:null;}
+function classAvg(){const a=[];scores.forEach(r=>r.forEach(v=>{if(v!=='')a.push(+v);}));return a.length?a.reduce((a,b)=>a+b)/a.length:null;}
+function warnCnt(){let n=0;scores.forEach(r=>r.forEach(v=>{if(v!==''&&+v<=WARN)n++;}));return n;}
+function stuCnt(){return scores.filter(r=>r.some(v=>v!=='')).length;}
 
 function renderScore(){
-  const hr=document.getElementById('headerRow'), tb=document.getElementById('tbody');
+  const hr=document.getElementById('headerRow');
+  const tb=document.getElementById('tbody');
   hr.innerHTML='';
+
   const thN=document.createElement('th'); thN.className='name-th'; thN.textContent='生徒名'; hr.appendChild(thN);
   cols.forEach((c,ci)=>{
     const th=document.createElement('th');
-    const inp=document.createElement('input'); inp.className='date-input'; inp.value=c;
-    inp.addEventListener('change',()=>{cols[ci]=inp.value||cols[ci];save();});
-    th.appendChild(inp); hr.appendChild(th);
+    const di=document.createElement('input'); di.className='date-input'; di.value=c;
+    di.addEventListener('change',()=>{cols[ci]=di.value||cols[ci];save();});
+    th.appendChild(di); hr.appendChild(th);
   });
   const thA=document.createElement('th'); thA.className='avg-th'; thA.textContent='個人平均'; hr.appendChild(thA);
   const thT=document.createElement('th'); thT.className='total-th'; thT.textContent='合計／レベル／評価'; hr.appendChild(thT);
@@ -360,6 +286,8 @@ function renderScore(){
   tb.innerHTML='';
   for(let ri=0;ri<ROWS;ri++){
     const tr=document.createElement('tr');
+
+    // 名前
     const tdN=document.createElement('td'); tdN.className='name-td';
     const wrap=document.createElement('div'); wrap.className='name-wrap';
     const num=document.createElement('span'); num.className='row-num'; num.textContent=(ri+1)+'.';
@@ -367,99 +295,103 @@ function renderScore(){
     lbl.textContent=names[ri]||'（未入力）';
     wrap.appendChild(num); wrap.appendChild(lbl); tdN.appendChild(wrap); tr.appendChild(tdN);
 
+    // スコア
     let total=0;
     cols.forEach((c,ci)=>{
       const td=document.createElement('td');
-      const inp=document.createElement('input'); inp.className='score-input'; inp.type='number'; inp.min=0; inp.max=MAX_SCORE;
-      inp.value=scores[ri][ci]; inp.id=`c_${ri}_${ci+1}`;
-      if(scores[ri][ci]!==''&&Number(scores[ri][ci])<=WARN) inp.classList.add('warn');
-      inp.addEventListener('keydown',e=>{
+      const inp=document.createElement('input');
+      inp.className='score-input'; inp.type='text'; inp.inputMode='numeric'; inp.pattern='[0-9]*';
+      inp.value=scores[ri][ci]; inp.id='c_'+ri+'_'+(ci+1);
+      if(scores[ri][ci]!==''&&+scores[ri][ci]<=WARN) inp.classList.add('warn');
+
+      inp.addEventListener('keydown', function(e){
         if(e.key==='Enter'){
           e.preventDefault();
-          // 値を保存
-          const raw=inp.value.trim();
+          e.stopPropagation();
+          // 今の値を確定
+          const raw=this.value.trim();
           scores[ri][ci]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
-          if(scores[ri][ci]!=='') inp.value=scores[ri][ci];
-          inp.classList.toggle('warn',scores[ri][ci]!==''&&Number(scores[ri][ci])<=WARN);
-          save(); updateResultRow(ri); refreshAvgRow();
-          // 新列が必要なら追加してから次セルへ
-          if(ci===cols.length-1 && scores[ri][ci]!==''){
-            addNewCol();
-            // addNewColでDOMが追加されるので少し待つ
-            requestAnimationFrame(()=>requestAnimationFrame(()=>focusCell(ri+1,ci+1)));
+          if(scores[ri][ci]!=='') this.value=scores[ri][ci];
+          this.classList.toggle('warn', scores[ri][ci]!==''&&+scores[ri][ci]<=WARN);
+          save(); updateRow(ri); refreshAvgRow();
+          // 新列が必要か
+          const needNewCol = ci===cols.length-1 && scores[ri][ci]!=='';
+          if(needNewCol){
+            cols.push('テスト'+(cols.length+1));
+            scores.forEach(r=>r.push(''));
+            save(); renderScore();
+            // renderScore後にフォーカス
+            document.getElementById('c_'+(ri+1)+'_'+(ci+1)) && document.getElementById('c_'+(ri+1)+'_'+(ci+1)).focus();
           } else {
-            focusCell(ri+1,ci+1);
+            // 次の行の同じ列にフォーカス
+            const next=document.getElementById('c_'+(ri+1)+'_'+(ci+1));
+            if(next){ next.focus(); next.select(); }
           }
         }
       });
-      inp.addEventListener('change',()=>{
-        const raw=inp.value.trim();
-        scores[ri][ci]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
-        if(scores[ri][ci]!=='') inp.value=scores[ri][ci];
-        inp.classList.toggle('warn',scores[ri][ci]!==''&&Number(scores[ri][ci])<=WARN);
-        save(); updateResultRow(ri); refreshAvgRow();
-        if(ci===cols.length-1 && scores[ri][ci]!=='') addNewCol();
-      });
+
       td.appendChild(inp); tr.appendChild(td);
       const n=parseInt(scores[ri][ci]); if(!isNaN(n)) total+=n;
     });
 
-    const tdP=document.createElement('td'); tdP.id=`pa_${ri}`;
+    // 個人平均
+    const tdP=document.createElement('td'); tdP.id='pa_'+ri;
     const pDiv=document.createElement('div'); pDiv.className='pavg';
-    const pa=studentAvg(ri); pDiv.textContent=pa!==null?pa.toFixed(1):'—';
+    pDiv.textContent=studentAvg(ri)!==null?studentAvg(ri).toFixed(1):'—';
     tdP.appendChild(pDiv); tr.appendChild(tdP);
 
-    const tdR=document.createElement('td'); tdR.className='result-td'; tdR.id=`res_${ri}`;
+    // 合計／レベル／星
+    const tdR=document.createElement('td'); tdR.className='result-td'; tdR.id='res_'+ri;
     const hasAny=scores[ri].some(v=>v!=='');
-    const pts=document.createElement('div'); pts.className='result-pts'; pts.id=`pts_${ri}`; pts.textContent=hasAny?`${total}点`:'';
-    const lv=document.createElement('div'); lv.className='result-lv'; lv.id=`lv_${ri}`; lv.textContent=hasAny?`Lv ${getLevel(total)}`:'';
+    const lv=getLevel(total);
+    const pts=document.createElement('div'); pts.className='result-pts'; pts.id='pts_'+ri; pts.textContent=hasAny?total+'点':'';
+    const lvd=document.createElement('div'); lvd.className='result-lv'; lvd.id='lv_'+ri; lvd.textContent=hasAny?'Lv '+lv:'';
     const sw=document.createElement('div'); sw.className='stars-wrap';
     for(let s=1;s<=MAX_STARS;s++){
       const sp=document.createElement('span'); sp.className='star'+(starsData[ri]>=s?' lit':''); sp.textContent='★';
       sp.addEventListener('click',()=>{starsData[ri]=starsData[ri]===s?s-1:s;save();updateStars(ri);});
       sw.appendChild(sp);
     }
-    tdR.appendChild(pts); tdR.appendChild(lv); tdR.appendChild(sw); tr.appendChild(tdR);
+    tdR.appendChild(pts); tdR.appendChild(lvd); tdR.appendChild(sw); tr.appendChild(tdR);
     tb.appendChild(tr);
   }
   appendAvgRow(tb);
+}
+
+function updateRow(ri){
+  let total=0; scores[ri].forEach(v=>{const n=parseInt(v);if(!isNaN(n))total+=n;});
+  const hasAny=scores[ri].some(v=>v!=='');
+  const p=document.getElementById('pts_'+ri); if(p) p.textContent=hasAny?total+'点':'';
+  const l=document.getElementById('lv_'+ri);  if(l) l.textContent=hasAny?'Lv '+getLevel(total):'';
+  const pa=document.getElementById('pa_'+ri);
+  if(pa){const d=pa.querySelector('.pavg')||pa; const avg=studentAvg(ri); d.textContent=avg!==null?avg.toFixed(1):'—';}
+}
+function updateStars(ri){
+  const wrap=document.querySelector('#res_'+ri+' .stars-wrap'); if(!wrap) return;
+  wrap.querySelectorAll('.star').forEach((sp,i)=>{sp.className='star'+(starsData[ri]>=i+1?' lit':'');});
 }
 
 function appendAvgRow(tb){
   const tr=document.createElement('tr'); tr.className='avg-row';
   const lbl=document.createElement('td'); lbl.className='avg-label'; lbl.textContent='📊 テスト平均'; tr.appendChild(lbl);
   cols.forEach((c,ci)=>{
-    const td=document.createElement('td'); td.className='avg-val'; td.id=`ca_${ci}`;
+    const td=document.createElement('td'); td.className='avg-val'; td.id='ca_'+ci;
     const avg=colAvg(ci); td.textContent=avg!==null?avg.toFixed(1)+'点':'—'; tr.appendChild(td);
   });
   tr.appendChild(document.createElement('td'));
   const tdT=document.createElement('td'); tdT.id='ca_total'; tdT.style.cssText='font-size:12px;color:#5070a0;padding:6px 8px;';
-  const ov=classOverallAvg(),sc=studentCount(),wc=warnCount();
-  tdT.innerHTML=(ov!==null?`全体平均 ${ov.toFixed(1)}点`:'—')+`<br>入力 ${sc}人`+(wc>0?` <span style="color:#d4321f">/ 50点以下 ${wc}件</span>`:'');
+  const ov=classAvg(),sc=stuCnt(),wc=warnCnt();
+  tdT.innerHTML=(ov!==null?'全体平均 '+ov.toFixed(1)+'点':'—')+'<br>入力 '+sc+'人'+(wc>0?' <span style="color:#d4321f">/ 50点以下 '+wc+'件</span>':'');
   tr.appendChild(tdT); tb.appendChild(tr);
 }
 
 function refreshAvgRow(){
-  cols.forEach((c,ci)=>{const td=document.getElementById(`ca_${ci}`);if(td){const avg=colAvg(ci);td.textContent=avg!==null?avg.toFixed(1)+'点':'—';}});
+  cols.forEach((c,ci)=>{const td=document.getElementById('ca_'+ci);if(td){const avg=colAvg(ci);td.textContent=avg!==null?avg.toFixed(1)+'点':'—';}});
   const td=document.getElementById('ca_total');
-  if(td){const ov=classOverallAvg(),sc=studentCount(),wc=warnCount();td.innerHTML=(ov!==null?`全体平均 ${ov.toFixed(1)}点`:'—')+`<br>入力 ${sc}人`+(wc>0?` <span style="color:#d4321f">/ 50点以下 ${wc}件</span>`:'');}
+  if(td){const ov=classAvg(),sc=stuCnt(),wc=warnCnt();td.innerHTML=(ov!==null?'全体平均 '+ov.toFixed(1)+'点':'—')+'<br>入力 '+sc+'人'+(wc>0?' <span style="color:#d4321f">/ 50点以下 '+wc+'件</span>':'');}
 }
 
-function updateResultRow(ri){
-  let total=0; scores[ri].forEach(v=>{const n=parseInt(v);if(!isNaN(n))total+=n;});
-  const hasAny=scores[ri].some(v=>v!=='');
-  const p=document.getElementById(`pts_${ri}`); if(p) p.textContent=hasAny?`${total}点`:'';
-  const l=document.getElementById(`lv_${ri}`);  if(l) l.textContent=hasAny?`Lv ${getLevel(total)}`:'';
-  const pa=document.getElementById(`pa_${ri}`);
-  if(pa){const d=pa.querySelector('.pavg')||pa;const avg=studentAvg(ri);d.textContent=avg!==null?avg.toFixed(1):'—';}
-}
-
-function updateStars(ri){
-  const wrap=document.querySelector(`#res_${ri} .stars-wrap`);
-  if(!wrap) return;
-  wrap.querySelectorAll('.star').forEach((sp,i)=>{sp.className='star'+(starsData[ri]>=i+1?' lit':'');});
-}
-
+/* ===== リセット ===== */
 let resetType='';
 function confirmReset(type){
   resetType=type;
@@ -475,7 +407,7 @@ function doReset(){
   closeModal();save();renderRoster();renderScore();
 }
 
-// ボタンにイベントを登録
+/* ===== ボタンイベント登録 ===== */
 document.getElementById('tabBtnRoster').addEventListener('click', ()=>switchTab('roster'));
 document.getElementById('tabBtnScore').addEventListener('click',  ()=>switchTab('score'));
 document.querySelector('[data-action="applyRoster"]').addEventListener('click', applyRoster);
