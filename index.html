@@ -131,8 +131,8 @@
 
 <!-- タブバー -->
 <div class="tab-bar">
-  <button class="tab-btn active" id="tabBtnRoster" >📋 名簿入力</button>
-  <button class="tab-btn" id="tabBtnScore" >📊 集計表</button>
+  <button class="tab-btn" id="tabBtnRoster" >📋 名簿入力</button>
+  <button class="tab-btn active" id="tabBtnScore" >📊 集計表</button>
 </div>
 
 <!-- ツールバー -->
@@ -144,7 +144,7 @@
 </div>
 
 <!-- 名簿タブ -->
-<div class="tab-content active" id="tabRoster">
+<div class="tab-content" id="tabRoster">
   <div class="roster-area">
     <h2>📋 名簿入力（40人分）</h2>
     <p style="font-size:13px;color:#5070a0;margin-bottom:10px;">Excelから名前の列をコピーしてそのまま貼り付けてください</p>
@@ -155,7 +155,7 @@
 </div>
 
 <!-- 集計タブ -->
-<div class="tab-content" id="tabScore">
+<div class="tab-content active" id="tabScore">
   <div class="table-area">
     <table id="mainTable">
       <thead><tr id="headerRow"></tr></thead>
@@ -428,4 +428,5 @@ setIndicator('loading');
 </script>
 </body>
 </html>
+
 
