@@ -86,7 +86,7 @@
   .row-num { font-size:11px; color:#5070b0; font-weight:700; min-width:22px; text-align:right; flex-shrink:0; }
   .name-label { font-size:14px; font-weight:700; color:#16284f; padding:7px 4px; }
   .name-label.empty { color:#b0c0d8; }
-  .score-input { border:none; background:transparent; width:100%; text-align:center; font-size:14px; color:#16284f; padding:7px 4px; display:block; font-weight:600; }
+  .score-input { border:none; background:transparent; width:100%; text-align:center; font-size:17px; color:#16284f; padding:7px 4px; display:block; font-weight:700; }
   .score-input:focus { outline:none; background:#eaf1ff; }
   .score-input.warn { color:#d4321f !important; font-weight:900; }
   td.result-td { padding:5px 10px; white-space:nowrap; min-width:170px; }
@@ -279,12 +279,14 @@ function classOverallAvg(){const a=[];scores.forEach(r=>r.forEach(v=>{if(v!=='')
 function warnCount(){let n=0;scores.forEach(r=>r.forEach(v=>{if(v!==''&&Number(v)<=WARN)n++;}));return n;}
 function studentCount(){return scores.filter(r=>r.some(v=>v!=='')).length;}
 
-function autoAddCol(){
+function autoAddCol(focusRi, focusCi){
   const last=cols.length-1;
   if(scores.some(r=>r[last]!=='')){
     cols.push('テスト'+(cols.length+1));
     scores.forEach(r=>r.push(''));
     save(); renderScore();
+    // render後にフォーカスを復元
+    if(focusRi!==undefined) setTimeout(()=>focusCell(focusRi, focusCi),30);
   }
 }
 
@@ -328,9 +330,16 @@ function renderScore(){
         scores[ri][ci]=raw===''?'':Math.min(MAX_SCORE,Math.max(0,parseInt(raw)||0));
         if(scores[ri][ci]!=='') inp.value=scores[ri][ci];
         inp.classList.toggle('warn',scores[ri][ci]!==''&&Number(scores[ri][ci])<=WARN);
-        save(); autoAddCol(); updateResultRow(ri); refreshAvgRow();
+        save(); autoAddCol(ri+1, ci+1); updateResultRow(ri); refreshAvgRow();
       });
-      inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();focusCell(ri+1,ci+1);}});
+      inp.addEventListener('keydown',e=>{
+        if(e.key==='Enter'){
+          e.preventDefault();
+          // changeイベントを先に発火させてからフォーカス移動
+          inp.dispatchEvent(new Event('change'));
+          setTimeout(()=>focusCell(ri+1,ci+1), 50);
+        }
+      });
       td.appendChild(inp); tr.appendChild(td);
       const n=parseInt(scores[ri][ci]); if(!isNaN(n)) total+=n;
     });
@@ -419,3 +428,4 @@ setIndicator('loading');
 </script>
 </body>
 </html>
+
